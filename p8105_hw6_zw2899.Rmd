@@ -35,11 +35,13 @@ theme_set(theme_minimal() + theme(legend.position = "bottom"))
 
 ## Problem 2
 
+Import the data set:
 ```{r import homicide data}
 homi_data = read_csv("./data/homicide-data.csv") %>% janitor::clean_names()
 homi_data
 ```
 
+Below are some data cleaning steps, where we exclude victims with unknown age, victims who are neither black nor white, and victims whose sex is unknown. Then we created a city_state variable and a binary factor variable indicating whether the case was resolved or not. We then converted victim age to a numeric variable. Finally, we excluded city_states that do not record victims' race or contain typos. 
 ```{r}
 homi_data = homi_data %>%
   filter(victim_age != "Unknown",
@@ -54,7 +56,6 @@ homi_data
 ```
 
 Run a logistic regression for Baltimore, MD:
-
 ```{r}
 Baltimore_fit = homi_data %>%
   filter(city_state == "Baltimore, MD") %>%
@@ -68,7 +69,7 @@ Baltimore_fit = homi_data %>%
 Baltimore_fit
 ```
 
-Run the same logistic regression for each city. To do this, first write the following function:
+Run the same logistic regression for each city. To do this, first write the following function that takes in the name of a city_state (as a string) and fits a logistic regression model of resolved homicide against victim race, age, and sex in the input city_state:
 ```{r}
 city_glm = function(city_state_name){
   fit = homi_data %>%
@@ -85,7 +86,7 @@ city_glm = function(city_state_name){
 
 ```
 
-Then use the map function:
+Then use the map function to obstain model fits for all city_states in the data set:
 ```{r}
 city_result = tibble(
   city_states = unique(homi_data$city_state),
@@ -95,15 +96,18 @@ city_result = tibble(
 
 city_result 
 ```
-Below is a plot that shows the estimated ORs and CIs for each city that compare resolved homicide cases among male vectims with female victims.
-```{r}
+Below is a plot that shows the estimated ORs and CIs for each city that compare resolved homicide cases among male vectims with female victims, holding all other variables constant.
+```{r OR with CI by city}
 city_result %>% 
-  mutate(city_states = fct_relevel(city_states, "OR")) %>%
+  mutate(city_states = fct_reorder(city_states, OR)) %>%
   ggplot(aes(y = city_states, x = OR)) +
   geom_point() +
-  geom_errorbar(aes(xmin = conf_low, xmax = conf_high))
+  geom_errorbar(aes(xmin = conf_low, xmax = conf_high)) +
+  labs(title = "Odds ratios for solving homicides comparing male victims to female victims, keeping all other variables fixed",
+       xlab = "Odds ratio",
+       ylab = "City")
 ```
-
+We can see that homicide cases that have male victims in Albuquerque, NM are esimated to be the most likely to get resolved among all cities in the data set, holding victim age and race fixed. In comparison, homicide cases that have male victims in New York, NY are estimated to be the least likely to get resolved among all cities in the data set, holding victim age and race fixed. However, the confidence intervals for the estimated ORs in all cities are pretty wide, espetially for cities that have higher estimated ORs. Therefore, the estimated ORs might be not be statistically significantly different between cities. 
 
 ## Problem 3
 
@@ -124,7 +128,7 @@ check_missing = function(col_name){
 
 map_df(names(bwt_data), check_missing)
 ```
-There is no missing values in the data set. We proceed to data cleaning:
+There is no missing values in the data set. Some factor variables were entered as numeric variables in the data set, so we proceed to recoding them to factors:
 ```{r}
 bwt_data = bwt_data %>%
   mutate(babysex = fct_recode(factor(babysex), male = "1", female = "2"),
@@ -135,29 +139,32 @@ bwt_data = bwt_data %>%
 bwt_data
 ```
 
-Use stepwise regression to select a multiple linear regression model for birth weight:
+Use automatic model selection procedure (stepwise regression) to select a multiple linear regression model for birth weight:
 ```{r}
-null_model = lm(bwt ~ 1, data = bwt_data)
-full_model = lm(bwt ~ ., data = bwt_data)
+null_model = lm(bwt ~ 1, data = bwt_data) # model with intercept only
+full_model = lm(bwt ~ ., data = bwt_data) # model with all predictors in the data set
+# run stepwise regression 
 stepwise_model = step(null_model, direction='both', scope=formula(full_model), trace=0)
 ```
 
-The stepwise regrression procedure selected the following predictors:
+The stepwise regrression procedure selected bhead, blength, mrace, delwt, gaweeks, smoken, ppbmi, babysex, parity, ppwt, and fincome as predictors:
 ```{r}
 tidy_stepwise_fit = stepwise_model %>% broom::tidy()
 tidy_stepwise_fit
 ```
 Below is a plot of model residuals against fitted values, using add_predictions and add_residuals in making this plot.
 
-```{r}
+```{r Residual vs fitted value for the proposed model}
 bwt_data %>% 
   add_residuals(stepwise_model) %>%
   add_predictions(stepwise_model) %>%
-  ggplot(aes(y = resid, x = pred )) + geom_point()
+  ggplot(aes(y = resid, x = pred )) + geom_point() +
+  labs(title = "Residuals vs. fitted values",
+       xlab = "Fitted value",
+       ylab = "Residual")
 ```
 
 Compare the above model with the following two using cross validation:
-
 ```{r}
 # uses length at birth and gestational age as predictors
 model1 = lm(bwt ~ blength + gaweeks, data = bwt_data)
@@ -198,14 +205,17 @@ cv_df
 ```
 
 Then plot the prediction error distribution for each of the three candidate models:
-```{r}
+```{r Distribution of RMSE for candidate models}
 cv_df %>%
   select(ends_with("rmse")) %>%
   pivot_longer(everything(),
                names_to = "model",
                values_to = "rmse") %>%
   mutate(model = fct_inorder(model)) %>% 
-  ggplot(aes(x = model, y = rmse)) + geom_violin()
+  ggplot(aes(x = model, y = rmse)) + geom_violin() +
+  labs(title = "Distribution of RMSE of candidate models",
+       xlab = "model",
+       ylab = "RMSE")
   
 ```
 
