@@ -174,4 +174,40 @@ Split the data into 100 training-test sets:
 cv_df = crossv_mc(bwt_data, 100)
 cv_df
 ```
+Then convert the training and testing set into data frames:
+```{r}
+cv_df = cv_df %>%
+  mutate(train = map(train, as_tibble),
+         test = map(test, as_tibble))
+
+cv_df
+```
+
+Obtain the prediction errors (RMSE) for each training-testing split for the three models and make a plot:
+```{r}
+cv_df = cv_df %>%
+  mutate(stepwise_fit = map(train, ~lm(bwt ~ bhead + blength + mrace + delwt + gaweeks + smoken + ppbmi + babysex + parity + ppwt + fincome, data = .x)),
+         mod1_fit = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+         mod2_fit = map(train, ~lm(bwt ~ bhead + blength + babysex + bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = .x))) %>%
+  mutate(stepwise_rmse = map2_dbl(stepwise_fit, test, ~rmse(model = .x, data = .y)),
+         mod1_rmse = map2_dbl(mod1_fit, test, ~rmse(model = .x, data = .y)),
+         mod2_rmse = map2_dbl(mod2_fit, test, ~rmse(model = .x, data = .y)))
+  
+cv_df
+  
+```
+
+Then plot the prediction error distribution for each of the three candidate models:
+```{r}
+cv_df %>%
+  select(ends_with("rmse")) %>%
+  pivot_longer(everything(),
+               names_to = "model",
+               values_to = "rmse") %>%
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+  
+```
+
+We can see that the model selected by stepwise regression has the lowest prediction error. 
 
