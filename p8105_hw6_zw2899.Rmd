@@ -163,6 +163,7 @@ bwt_data %>%
        xlab = "Fitted value",
        ylab = "Residual")
 ```
+We can see that the residuals are about constant for fitted values from 1000 and up. However, the residuals for fitted values smaller than 1000 seem to be large and skewed toward the positive side, indicating possible effects of outliers.  
 
 Compare the above model with the following two using cross validation:
 ```{r}
