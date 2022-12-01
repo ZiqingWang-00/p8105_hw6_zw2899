@@ -11,6 +11,8 @@ library(ggplot2)
 library(readr)
 library(viridis)
 library(forcats)
+library(modelr)
+library(purrr)
 
 knitr::opts_chunk$set(
 	echo = TRUE,
@@ -135,11 +137,41 @@ bwt_data
 
 Use stepwise regression to select a multiple linear regression model for birth weight:
 ```{r}
-
+null_model = lm(bwt ~ 1, data = bwt_data)
+full_model = lm(bwt ~ ., data = bwt_data)
+stepwise_model = step(null_model, direction='both', scope=formula(full_model), trace=0)
 ```
 
+The stepwise regrression procedure selected the following predictors:
+```{r}
+tidy_stepwise_fit = stepwise_model %>% broom::tidy()
+tidy_stepwise_fit
+```
+Below is a plot of model residuals against fitted values, using add_predictions and add_residuals in making this plot.
 
+```{r}
+bwt_data %>% 
+  add_residuals(stepwise_model) %>%
+  add_predictions(stepwise_model) %>%
+  ggplot(aes(y = resid, x = pred )) + geom_point()
+```
 
+Compare the above model with the following two using cross validation:
 
+```{r}
+# uses length at birth and gestational age as predictors
+model1 = lm(bwt ~ blength + gaweeks, data = bwt_data)
 
+# uses head circumference, length, sex, and all interactions
+model2 = lm(bwt ~ bhead + blength + babysex + 
+              bhead*blength + bhead*babysex + blength*babysex +
+              bhead*blength*babysex,
+            data = bwt_data)
+```
+
+Split the data into 100 training-test sets:
+```{r}
+cv_df = crossv_mc(bwt_data, 100)
+cv_df
+```
 
